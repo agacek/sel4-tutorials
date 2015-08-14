@@ -87,7 +87,7 @@ void thread_2(void) {
     seL4_SetMR(0, msg);
 
     /* TODO: send the message back: hint seL4_ReplyWait() */
-    seL4_MessageInfo_t msg_info = seL4_MessageInfo_new(0, 0, 0, 0);
+    seL4_MessageInfo_t msg_info = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_ReplyWait(ep_object.cptr, msg_info, 0);
 }
 
@@ -203,6 +203,7 @@ int main(void)
     */
     cspacepath_t path;
     vka_mint_object(&vka, &ep_object, &path, seL4_AllRights, seL4_CapData_Badge_new(EP_BADGE));
+    seL4_CPtr badged_ep = path.capPtr;
 
     /* initialise the new TCB */
     error = seL4_TCB_Configure(tcb_object.cptr, seL4_CapNull, seL4_MaxPrio,
@@ -249,10 +250,10 @@ int main(void)
      * hint 1: seL4_MessageInfo_new()
      * hint 2: seL4_SetMR() */
     seL4_SetMR(0, MSG_DATA);
-    seL4_MessageInfo_t msg_info = seL4_MessageInfo_new(0, 0, 0, 0);
+    seL4_MessageInfo_t msg_info = seL4_MessageInfo_new(0, 0, 0, 1);
 
     /* TODO: send and wait for a reply: hint seL4_Call() */
-    msg_info = seL4_Call(ep_object.cptr, msg_info);
+    msg_info = seL4_Call(badged_ep, msg_info);
 
     /* TODO: get the reply message: hint seL4_GetMR() */
     seL4_Word msg = seL4_GetMR(0);
@@ -262,4 +263,3 @@ int main(void)
 
     return 0;
 }
-
