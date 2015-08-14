@@ -15,5 +15,7 @@
 
 #include <stdio.h>
 
-/* TODO: add a main function to print a message */
+int main() {
+  printf("Hello world!\n");
+}
 
