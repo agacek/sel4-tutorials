@@ -49,6 +49,7 @@ seL4_BootInfo *info;
 simple_t simple;
 vka_t vka;
 allocman_t *allocman;
+vka_object_t ep_object;
 
 /* static memory for the allocator to bootstrap with */
 #define ALLOCATOR_STATIC_POOL_SIZE ((1 << seL4_PageBits) * 10)
@@ -64,16 +65,18 @@ extern void name_thread(seL4_CPtr tcb, char *name);
 /* function to run in the new thread */
 void thread_2(void) {
     seL4_Word sender_badge;
-    seL4_MessageInfo_t tag;
+    UNUSED seL4_MessageInfo_t tag;
     seL4_Word msg;
 
     printf("thread_2: hallo wereld\n");
 
     /* TODO: wait for a message to come in over the endpoint
      * hint: seL4_Wait */
+    seL4_Wait(ep_object.cptr, &sender_badge);
 
     /* TODO: get the message stored in the first message register
      * hint: seL$_GetMR() */
+    msg = seL4_GetMR(0);
     printf("thread_2: got a message %#x from %#x\n", msg, sender_badge);
 
     /* modify the message */ 
@@ -81,13 +84,16 @@ void thread_2(void) {
 
     /* TODO: copy the modified message back into the message register
      * hint: seL4_SetMR() */
+    seL4_SetMR(0, msg);
 
     /* TODO: send the message back: hint seL4_ReplyWait() */
+    seL4_MessageInfo_t msg_info = seL4_MessageInfo_new(0, 0, 0, 0);
+    seL4_ReplyWait(ep_object.cptr, msg_info, 0);
 }
 
 int main(void)
 {
-    UNUSED int error;
+    int error;
 
     /* give us a name: useful for debugging if the thread faults */
     name_thread(seL4_CapInitThreadTCB, "hello-3");
@@ -102,7 +108,7 @@ int main(void)
     simple_print(&simple);
 
     /* create an allocator */
-    allocman = bootstrap_use_current_simple(&simple, ALLOCATOR_STATIC_POOL_SIZE,        allocator_mem_pool);
+    allocman = bootstrap_use_current_simple(&simple, ALLOCATOR_STATIC_POOL_SIZE, allocator_mem_pool);
     assert(allocman);
 
     /* create a vka (interface for interacting with the underlying allocator) */
@@ -126,6 +132,8 @@ int main(void)
      */
 
     /* TODO: get a frame cap for the ipc buffer: hint vka_alloc_frame() */
+    vka_object_t ipc_frame_object = {0};
+    vka_alloc_frame(&vka, IPCBUF_FRAME_SIZE_BITS, &ipc_frame_object);
 
     /*
      * TODO: map the frame into the vspace at ipc_buffer_vaddr.
@@ -139,12 +147,49 @@ int main(void)
      * hint 2: vka_alloc_page_table()
      * hint 3: seL4_ARCH_PageTable_Map()
      */
+    /*
+      seL4_IA32_Page_Map(seL4_IA32_Page service,
+                         seL4_IA32_PageDirectory pd,
+			 seL4_Word vaddr,
+			 seL4_CapRights rights,
+			 seL4_IA32_VMAttributes attr)
+    */
+    error = seL4_IA32_Page_Map(ipc_frame_object.cptr,
+			       pd_cap,
+			       IPCBUF_VADDR,
+			       seL4_AllRights,
+			       seL4_IA32_Default_VMAttributes);
+
+    if (error != 0) {
+      vka_object_t pt_object = {0};
+      vka_alloc_page_table(&vka, &pt_object);
+
+      /*
+	seL4_IA32_PageTable_Map(seL4_IA32_PageTable service,
+	                        seL4_IA32_PageDirectory pd,
+				seL4_Word vaddr,
+				seL4_IA32_VMAttributes attr)
+      */
+      error = seL4_IA32_PageTable_Map(pt_object.cptr,
+				      pd_cap,
+				      IPCBUF_VADDR,
+				      seL4_IA32_Default_VMAttributes);
+      assert (error == 0);
+
+      error = seL4_IA32_Page_Map(ipc_frame_object.cptr,
+				 pd_cap,
+				 IPCBUF_VADDR,
+				 seL4_AllRights,
+				 seL4_IA32_Default_VMAttributes);
+      assert (error == 0);
+    }
 
     /* set the IPC buffer's virtual address in a field of the IPC buffer */
-    seL4_IPCBuffer *ipcbuf = (seL4_IPCBuffer*)ipc_buffer_vaddr;
-    ipcbuf->userData = ipc_buffer_vaddr;
+    seL4_IPCBuffer *ipcbuf = (seL4_IPCBuffer*) IPCBUF_VADDR;
+    ipcbuf->userData = IPCBUF_VADDR;
 
     /* TODO: create an endpoint: hint vka_alloc_endpoint() */
+    vka_alloc_endpoint(&vka, &ep_object);
 
     /* TODO: make a badged copy of it in our cspace.
      * This copy will be used to send an IPC message to the original cap
@@ -152,11 +197,17 @@ int main(void)
      * hint 2: seL4_AllRights()
      * hint 3: seL4_CapData_Badge_new()
      */
+    /*
+      vka_mint_object(vka_t *vka, vka_object_t *object, cspacepath_t *result, 
+        seL4_CapRights rights, seL4_CapData_t badge)
+    */
+    cspacepath_t path;
+    vka_mint_object(&vka, &ep_object, &path, seL4_AllRights, seL4_CapData_Badge_new(EP_BADGE));
 
     /* initialise the new TCB */
     error = seL4_TCB_Configure(tcb_object.cptr, seL4_CapNull, seL4_MaxPrio,
         cspace_cap, seL4_NilData, pd_cap, seL4_NilData,
-        ipc_buffer_vaddr, ipc_frame_object.cptr);
+        IPCBUF_VADDR, ipc_frame_object.cptr);
     assert(error == 0);
 
     /* give the new thread a name */
@@ -197,12 +248,17 @@ int main(void)
     /* TODO: set the data to send. We send it in the first message register
      * hint 1: seL4_MessageInfo_new()
      * hint 2: seL4_SetMR() */
+    seL4_SetMR(0, MSG_DATA);
+    seL4_MessageInfo_t msg_info = seL4_MessageInfo_new(0, 0, 0, 0);
 
     /* TODO: send and wait for a reply: hint seL4_Call() */
+    msg_info = seL4_Call(ep_object.cptr, msg_info);
 
     /* TODO: get the reply message: hint seL4_GetMR() */
+    seL4_Word msg = seL4_GetMR(0);
 
     printf("main: got a reply: %#x\n", msg);
+    abort();
 
     return 0;
 }
