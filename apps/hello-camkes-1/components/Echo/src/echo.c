@@ -19,3 +19,6 @@
 #include <camkes.h>
 
 /* TODO: implement the RPC function. */
+void hello_say_hi(void) {
+  printf("Echo server: hi\n");
+}

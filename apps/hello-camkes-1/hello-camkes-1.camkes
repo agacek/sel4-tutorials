@@ -21,8 +21,11 @@ import "components/Echo/Echo.camkes";
 assembly {
         composition {
                 /* TODO: component instances */
+		component Echo echo_inst;
+		component Client client_inst;
 
                 /* TODO: connections */
+		connection seL4RPCCall conn1(from client_inst.hello, to echo_inst.hello);
         }
 }
 

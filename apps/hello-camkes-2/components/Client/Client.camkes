@@ -20,7 +20,12 @@ component Client {
         control;
 
         /* TODO: the event interfaces */
+	emits Flag data_ready;
+	consumes Flag reply_ready;
 
         /* TODO: the dataport interfaces */
+	dataport Buf untyped;
+	dataport str_buf_t strs;
+	dataport ptr_buf_t ptrs;
 }
 

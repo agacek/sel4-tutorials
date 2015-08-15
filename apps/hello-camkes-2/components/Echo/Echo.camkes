@@ -17,7 +17,12 @@ component Echo {
 	include "str_buf.h";
 
         /* TODO: the event interfaces */
+	consumes Flag data_ready;
+	emits Flag reply_ready;
 
         /* TODO: the dataport interfaces */
+	dataport Buf untyped;
+	dataport str_buf_t strs;
+	dataport ptr_buf_t ptrs;
 }
 

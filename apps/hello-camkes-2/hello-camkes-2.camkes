@@ -25,14 +25,22 @@ assembly {
                 component Echo echo;
 		
                 /* TODO: Event connections */
+		connection seL4Asynch conn1(from client.data_ready, to echo.data_ready);
+		connection seL4Asynch conn2(from echo.reply_ready, to client.reply_ready);
 
                 /* TODO: Dataport connections */
-	
+		connection seL4SharedData conn3(from client.untyped, to echo.untyped);
+		connection seL4SharedData conn4(from client.strs, to echo.strs);
+		connection seL4SharedData conn5(from client.ptrs, to echo.ptrs);
 	}
 	configuration {
                 /* TODO: set component priorities */
+		client.priority = 100;
+		echo.priority = 200;
 
                 /* TODO: restrict access to dataports */
+                conn4.from_access = "R";
+                conn4.to_access = "W";
 	}
 }
 

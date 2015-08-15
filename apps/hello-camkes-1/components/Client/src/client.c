@@ -23,6 +23,7 @@ int run(void) {
     printf("-------------------\n");
 
     /* TODO: invoke the RPC function */
+    hello_say_hi();
 
     printf("After the client\n");
     return 0;
