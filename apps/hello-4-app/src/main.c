@@ -37,6 +37,7 @@ int main(int argc, char **argv) {
     seL4_SetMR(0, MSG_DATA);
 
     /* TODO: send and wait for a reply: hint seL4_Call() */
+    tag = seL4_Call(EP_CPTR, tag);
 
     /* check that we got the expected repy */
     assert(seL4_MessageInfo_get_length(tag) == 1);
@@ -44,6 +45,7 @@ int main(int argc, char **argv) {
     assert(msg == ~MSG_DATA);
 
     printf("process_2: got a reply: %#x\n", msg);
+    abort();
 
     return 0;
 }
